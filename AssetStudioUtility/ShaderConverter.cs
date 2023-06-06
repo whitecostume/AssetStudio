@@ -1,5 +1,6 @@
 ﻿using K4os.Compression.LZ4;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -145,10 +146,24 @@ namespace AssetStudio
                         sb.Append("}\n");
                     }
 
+                    if (m_Passe.progVertex.m_PlayerSubPrograms.Length > 0)
+                    {
+                        sb.Append("PlayerProgram \"vp\" {\n");
+                        sb.Append(ConvertSerializedPlayerSubPrograms(m_Passe.progVertex.m_PlayerSubPrograms, platforms, shaderPrograms));
+                        sb.Append("}\n");
+                    }
+
                     if (m_Passe.progFragment.m_SubPrograms.Length > 0)
                     {
                         sb.Append("Program \"fp\" {\n");
                         sb.Append(ConvertSerializedSubPrograms(m_Passe.progFragment.m_SubPrograms, platforms, shaderPrograms));
+                        sb.Append("}\n");
+                    }
+
+                    if (m_Passe.progFragment.m_PlayerSubPrograms.Length > 0)
+                    {
+                        sb.Append("PlayerProgram \"fp\" {\n");
+                        sb.Append(ConvertSerializedPlayerSubPrograms(m_Passe.progFragment.m_PlayerSubPrograms, platforms, shaderPrograms));
                         sb.Append("}\n");
                     }
 
@@ -159,10 +174,24 @@ namespace AssetStudio
                         sb.Append("}\n");
                     }
 
+                    if (m_Passe.progGeometry.m_PlayerSubPrograms.Length > 0)
+                    {
+                        sb.Append("PlayerProgram \"gp\" {\n");
+                        sb.Append(ConvertSerializedPlayerSubPrograms(m_Passe.progGeometry.m_PlayerSubPrograms, platforms, shaderPrograms));
+                        sb.Append("}\n");
+                    }
+
                     if (m_Passe.progHull.m_SubPrograms.Length > 0)
                     {
                         sb.Append("Program \"hp\" {\n");
                         sb.Append(ConvertSerializedSubPrograms(m_Passe.progHull.m_SubPrograms, platforms, shaderPrograms));
+                        sb.Append("}\n");
+                    }
+
+                    if (m_Passe.progHull.m_PlayerSubPrograms.Length > 0)
+                    {
+                        sb.Append("PlayerProgram \"hp\" {\n");
+                        sb.Append(ConvertSerializedPlayerSubPrograms(m_Passe.progHull.m_PlayerSubPrograms, platforms, shaderPrograms));
                         sb.Append("}\n");
                     }
 
@@ -173,14 +202,70 @@ namespace AssetStudio
                         sb.Append("}\n");
                     }
 
+                    if (m_Passe.progDomain.m_PlayerSubPrograms.Length > 0)
+                    {
+                        sb.Append("PlayerProgram \"dp\" {\n");
+                        sb.Append(ConvertSerializedPlayerSubPrograms(m_Passe.progDomain.m_PlayerSubPrograms, platforms, shaderPrograms));
+                        sb.Append("}\n");
+                    }
+
                     if (m_Passe.progRayTracing?.m_SubPrograms.Length > 0)
                     {
                         sb.Append("Program \"rtp\" {\n");
                         sb.Append(ConvertSerializedSubPrograms(m_Passe.progRayTracing.m_SubPrograms, platforms, shaderPrograms));
                         sb.Append("}\n");
                     }
+
+                    if (m_Passe.progRayTracing?.m_PlayerSubPrograms.Length > 0)
+                    {
+                        sb.Append("PlayerProgram \"rtp\" {\n");
+                        sb.Append(ConvertSerializedPlayerSubPrograms(m_Passe.progRayTracing.m_PlayerSubPrograms, platforms, shaderPrograms));
+                        sb.Append("}\n");
+                    }
                 }
                 sb.Append("}\n");
+            }
+            return sb.ToString();
+        }
+
+        private static string ConvertSerializedPlayerSubPrograms(SerializedPlayerSubProgram[][] m_SubPrograms, ShaderCompilerPlatform[] platforms, ShaderProgram[] shaderPrograms)
+        {
+            var sb = new StringBuilder();
+            var subProgramsAll = new List<SerializedPlayerSubProgram>();
+               
+            foreach(var subProgram in m_SubPrograms)
+            {
+                foreach(var subProgram2 in subProgram)
+                {
+                    subProgramsAll.Add(subProgram2);
+                }
+            }
+
+            var groups = subProgramsAll.GroupBy(x => x.m_BlobIndex);
+            sb.AppendLine(" Count " + groups.Count());
+            foreach (var group in groups)
+            {
+                var programs = group.GroupBy(x => x.m_GpuProgramType);
+                foreach (var program in programs)
+                {
+                    for (int i = 0; i < platforms.Length; i++)
+                    {
+                        var platform = platforms[i];
+                        if (CheckGpuProgramUsable(platform, program.Key))
+                        {
+                            var subPrograms = program.ToList();
+                            var isTier = subPrograms.Count > 1;
+                            foreach (var subProgram in subPrograms)
+                            {
+                                sb.Append($"PlayerSubProgram \"{GetPlatformString(platform)} ");
+                                sb.Append("\" {\n");
+                                sb.Append(shaderPrograms[i].m_SubPrograms[subProgram.m_BlobIndex].Export());
+                                sb.Append("\n}\n");
+                            }
+                            break;
+                        }
+                    }
+                }
             }
             return sb.ToString();
         }
@@ -930,6 +1015,7 @@ namespace AssetStudio
         public string[] m_Keywords;
         public string[] m_LocalKeywords;
         public byte[] m_ProgramCode;
+        public string[] m_GlobalKeywords;
 
         public ShaderSubProgram(BinaryReader reader)
         {
@@ -949,19 +1035,28 @@ namespace AssetStudio
             {
                 reader.BaseStream.Position += 4;
             }
-            var m_KeywordsSize = reader.ReadInt32();
-            m_Keywords = new string[m_KeywordsSize];
-            for (int i = 0; i < m_KeywordsSize; i++)
-            {
-                m_Keywords[i] = reader.ReadAlignedString();
-            }
+          
             if (m_Version >= 201806140 && m_Version < 202012090)
             {
+                m_GlobalKeywords = new string[reader.ReadInt32()];
+                for (int i = 0; i < m_GlobalKeywords.Length; i++)
+                {
+                    m_GlobalKeywords[i] = reader.ReadAlignedString();
+                }
                 var m_LocalKeywordsSize = reader.ReadInt32();
                 m_LocalKeywords = new string[m_LocalKeywordsSize];
                 for (int i = 0; i < m_LocalKeywordsSize; i++)
                 {
                     m_LocalKeywords[i] = reader.ReadAlignedString();
+                }
+            }
+            else
+            {
+                var m_KeywordsSize = reader.ReadInt32();
+                m_Keywords = new string[m_KeywordsSize];
+                for (int i = 0; i < m_KeywordsSize; i++)
+                {
+                    m_Keywords[i] = reader.ReadAlignedString();
                 }
             }
             m_ProgramCode = reader.ReadUInt8Array();
@@ -993,7 +1088,7 @@ namespace AssetStudio
             }
 
             sb.Append("\"");
-            if (m_ProgramCode.Length > 0)
+            if (false)
             {
                 switch (m_ProgramType)
                 {
