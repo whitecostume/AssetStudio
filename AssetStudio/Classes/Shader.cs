@@ -734,19 +734,21 @@ namespace AssetStudio
                 m_SubPrograms[i] = new SerializedSubProgram(reader);
             }
 
-            int numPlayerSubPrograms = reader.ReadInt32();
-            m_PlayerSubPrograms = new SerializedPlayerSubProgram[numPlayerSubPrograms][];
-            for (int i = 0; i < numPlayerSubPrograms; i++)
+            if ((version[0] == 2021) && version[1] >= 3) //2021.3.10f1 and up
             {
-                var num = reader.ReadInt32();
-                SerializedPlayerSubProgram[] subPrograms = new SerializedPlayerSubProgram[num];
-                for (int j = 0;j< num;j++)
+                int numPlayerSubPrograms = reader.ReadInt32();
+                m_PlayerSubPrograms = new SerializedPlayerSubProgram[numPlayerSubPrograms][];
+                for (int i = 0; i < numPlayerSubPrograms; i++)
                 {
-                    subPrograms[j] = new SerializedPlayerSubProgram(reader);
+                    var num = reader.ReadInt32();
+                    SerializedPlayerSubProgram[] subPrograms = new SerializedPlayerSubProgram[num];
+                    for (int j = 0;j< num;j++)
+                    {
+                        subPrograms[j] = new SerializedPlayerSubProgram(reader);
+                    }
+                    m_PlayerSubPrograms[i] = subPrograms;
                 }
-                m_PlayerSubPrograms[i] = subPrograms;
             }
-
 
             m_ParameterBlobIndices = reader.ReadUInt32ArrayArray();
 
@@ -874,18 +876,6 @@ namespace AssetStudio
         }
     }
 
-    public class SerializedSubShaderPackageRequirements
-    {
-        public int numRequirements;
-        public string statueMessange;
-        public int m_CombinedStatus;
-        public SerializedSubShaderPackageRequirements(BinaryReader reader)
-        {
-            numRequirements = reader.ReadInt32();
-            statueMessange = reader.ReadAlignedString();
-            m_CombinedStatus = reader.ReadInt32();
-        }
-    }
 
     public class SerializedSubShader
     {
