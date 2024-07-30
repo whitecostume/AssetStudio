@@ -230,7 +230,7 @@ namespace AssetStudio
         private void ReadBlocksInfoAndDirectory(EndianBinaryReader reader)
         {
             byte[] blocksInfoBytes;
-            if (m_Header.version >= 7)
+            if (m_Header.version >= 6)
             {
                 reader.AlignStream(16);
             }
